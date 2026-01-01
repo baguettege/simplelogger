@@ -1,5 +1,9 @@
 package api;
 
+/**
+ * Utility class holding ANSI escape sequences.
+ */
+
 public final class AnsiConstants {
     private AnsiConstants() {}
 

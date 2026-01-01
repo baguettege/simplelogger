@@ -1,5 +1,13 @@
 package api;
 
+/**
+ * Represents the severity of a log.
+ *
+ * <p>
+ *     Each enum constant is defined with a priority, defining its importance. A greater number means greater priority.
+ * </p>
+ */
+
 public enum LogSeverity {
     TRACE(-2),
     DEBUG(-1),
@@ -14,6 +22,11 @@ public enum LogSeverity {
         this.priority = priority;
     }
 
+    /**
+     * Returns the priority of this enum constant. A greater number means greater priority.
+     *
+     * @return priority of this enum constant
+     */
     public int priority() {
         return priority;
     }
