@@ -1,4 +1,4 @@
-# SimpleLogger - rework
+# SimpleLogger
 
 ---
 
