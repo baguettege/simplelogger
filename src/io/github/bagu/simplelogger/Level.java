@@ -1,21 +1,23 @@
 package io.github.bagu.simplelogger;
 
 /**
- * Represents logging severity levels in ascending order of severity.
- * The levels are ordered from least severe (TRACE) to most severe (FATAL).
- *
+ * Represents the severity level of a log message.
  * <p>
- *     The ordinal values can be used for level comparison and filtering.
- * </p>
+ * The severity of multiple levels can be compared using {@link Enum#ordinal()}, where a larger
+ * number indicates a higher severity.
+ *
+ * @see LogEvent#level()
+ * @see Logger
+ * @see io.github.bagu.simplelogger.sinks.FilteredSink
  */
 public enum Level {
     /**
-     * Detailed diagnostic information for troubleshooting.
+     * Fine-grained, highly detailed logs.
      */
     TRACE,
 
     /**
-     * Debugging information useful for development.
+     * Fine-grained, informational logs used for debugging an application.
      */
     DEBUG,
 
@@ -25,7 +27,7 @@ public enum Level {
     INFO,
 
     /**
-     * Warning messages for potentially harmful situations.
+     * Warning messages for potentially harmful, but recoverable situations.
      */
     WARN,
 

@@ -1,20 +1,25 @@
 package io.github.bagu.simplelogger.format;
 
+import java.time.Instant;
+
 /**
- * A formatter for converting epoch milliseconds into human-readable timestamp strings.
- *
+ * Formats timestamps for log output.
  * <p>
- *     Implementations of this interface are responsible for converting Unix timestamps into formatted
- *     time strings.
- * </p>
+ * Implementations define how timestamps are rendered in log events, such as ISO-8601
+ * format, local time, or custom formats.
+ *
+ * @see LogFormatter
+ * @see io.github.bagu.simplelogger.format.time.ISO8601TimeFormatter
+ * @see io.github.bagu.simplelogger.format.time.LocalTimeFormatter
+ * @see io.github.bagu.simplelogger.format.time.LocalDateTimeFormatter
  */
 @FunctionalInterface
 public interface TimeFormatter {
     /**
      * Formats a timestamp into a string.
      *
-     * @param epochMillis the timestamp in milliseconds since the Unix epoch
+     * @param timestamp the timestamp to format
      * @return the formatted timestamp string
      */
-    String format(long epochMillis);
+    String format(Instant timestamp);
 }

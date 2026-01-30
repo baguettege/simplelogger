@@ -1,106 +1,83 @@
 package io.github.bagu.simplelogger;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 
 /**
- * An immutable record of a logging event containing all contextual information.
- *
+ * Represents a single log event with all associated metadata.
  * <p>
- *     A {@link LogEvent} captures the complete state of a log message at the time it was created,
- *     including timestamp, severity level, message template, object parameters, logger name, and thread
- *     name.
- * </p>
+ * This is an immutable data class that encapsulates all information about a log message,
+ * including when it occurred, its severity, which thread and logger produced it, the message
+ * itself, and any parameters.
  *
- *
- * <p>
- *     The message and parameters follow a placeholder format where {@code {}} in the message is replaced with
- *     corresponding parameter values during formatting.
- * </p>
- *
- * <pre>
- *     {@code LogEvent event = new LogEvent(
- *         System.currentTimeMillis(),
- *         Level.INFO,
- *         "User {} logged in from {}",
- *         List.of("alice", "192.168.0.1"),
- *         "AuthService",
- *         Thread.currentThread().getName()
- * );}
- * </pre>
+ * @see Logger
+ * @see LogSink
  */
-public class LogEvent {
-    private final long epochMillis;
+public final class LogEvent {
+    private final Instant timestamp;
     private final Level level;
-    private final String message;
-    private final List<Object> parameters;
-    private final String loggerName;
     private final String threadName;
+    private final String loggerName;
+    private final String message;
+    private final List<Object> params;
 
     /**
-     * Creates a new immutable log event.
+     * Constructs a log event with the specified properties.
      *
-     * @param epochMillis the timestamp in milliseconds since the Unix epoch
-     * @param level the severity level
-     * @param message the log message template with optional {@code {}} placeholders
-     * @param parameters the list of parameters to substitute into the message
-     * @param loggerName the name of the logger that created this event
-     * @param threadName the name of the thread that created this event
+     * @param timestamp when the log event occurred
+     * @param level the severity level of the event
+     * @param threadName the name of the thread that generated the event
+     * @param loggerName the name of the logger that generated the event
+     * @param message the log message
+     * @param params parameters for the message
+     * @throws NullPointerException if any parameter is null
      */
     public LogEvent(
-            long epochMillis,
+            Instant timestamp,
             Level level,
-            String message,
-            List<Object> parameters,
+            String threadName,
             String loggerName,
-            String threadName
+            String message,
+            List<Object> params
     ) {
-        this.epochMillis = epochMillis;
+        this.timestamp = Objects.requireNonNull(timestamp);
         this.level = Objects.requireNonNull(level);
-        this.message = Objects.requireNonNull(message);
-        this.parameters = List.copyOf(parameters);
-        this.loggerName = Objects.requireNonNull(loggerName);
         this.threadName = Objects.requireNonNull(threadName);
+        this.loggerName = Objects.requireNonNull(loggerName);
+        this.message = Objects.requireNonNull(message);
+        this.params = List.copyOf(params);
     }
 
     /**
-     * Returns the timestamp when this event was created.
+     * Returns the timestamp when this log event occurred.
      *
-     * @return milliseconds since the Unix epoch
+     * @return the timestamp
      */
-    public long epochMillis() {
-        return epochMillis;
+    public Instant timestamp() {
+        return timestamp;
     }
 
     /**
-     * Returns the severity level of this event.
+     * Returns the severity level of this log event.
      *
-     * @return the log level
+     * @return the level
      */
     public Level level() {
         return level;
     }
 
     /**
-     * Returns the message template with optional {@code {}} placeholders.
+     * Returns the name of the thread that generated this log event.
      *
-     * @return the message template
+     * @return the thread name
      */
-    public String message() {
-        return message;
+    public String threadName() {
+        return threadName;
     }
 
     /**
-     * Returns an immutable list of parameters for message substitution.
-     *
-     * @return the parameter list
-     */
-    public List<Object> parameters() {
-        return parameters;
-    }
-
-    /**
-     * Returns the name of the logger that created this event.
+     * Returns the name of the logger that generated this log event.
      *
      * @return the logger name
      */
@@ -109,23 +86,32 @@ public class LogEvent {
     }
 
     /**
-     * Returns the name of the thread that created this event.
+     * Returns the message for this log event.
      *
-     * @return the thread name
+     * @return the message
      */
-    public String threadName() {
-        return threadName;
+    public String message() {
+        return message;
+    }
+
+    /**
+     * Returns the parameters for this log event.
+     *
+     * @return an immutable list of parameters
+     */
+    public List<Object> params() {
+        return params;
     }
 
     @Override
     public String toString() {
         return "LogEvent{" +
-                "epochMillis=" + epochMillis +
+                "timestamp=" + timestamp +
                 ", level=" + level +
-                ", message=" + message +
-                ", parameters=" + parameters +
-                ", loggerName=" + loggerName +
-                ", threadName=" + threadName +
-                "}";
+                ", threadName='" + threadName + '\'' +
+                ", loggerName='" + loggerName + '\'' +
+                ", message='" + message + '\'' +
+                ", params=" + params +
+                '}';
     }
 }

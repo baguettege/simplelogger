@@ -1,244 +1,323 @@
 # SimpleLogger
 
-A lightweight, zero-dependency Java logging library focused on clarity, composability and thread-safety.
-
-SimpleLogger is designed to be easy to embed in small projects or libraries where heavyweight logging
-frameworks are undesirable, while still providing powerful building blocks such as asynchronous
-logging, filtering, formatting and sink composition.
+A lightweight, flexible Java logging library with a focus on simplicity and performance.
 
 ---
 
-## Features
+# Features
 
-- **Zero external dependencies**
-- **Fully thread-safe** core and sinks
-- **Composable sinks** (console, async, filtered, composite)
-- **Structured log events** with rich context
-- **Asynchronous logging** with configurable backpressure policies
-- **Flexible filtering** by level or custom predicates
-- **AutoCloseable loggers & sinks** (try-with-resources friendly)
-- **Pluggable time and message formatting**
-- **Automatic exception stack trace rendering**
+- **Simple API** - Intuitive logger interface with standard log levels (TRACE, DEBUG, INFO, WARN, ERROR, FATAL)
+- **Flexible Sinks** - Write logs to console, files, or custom destinations
+- **Async Support** - Non-blocking logging with configurable async sinks
+- **Parameterized Messages** - Efficient message formatting with `{}` placeholders
+- **Thread-safe** - All components designed for concurrent use
+- **Zero Dependencies** - Pure Java with no external dependencies
+- **Composable** - Chain and filter sinks to build complex logging pipelines
 
 ---
 
-## Why SimpleLogger?
+# Why SimpleLogger?
 
 SimpleLogger is designed for applications that need:
-- A small, dependency-free logging core
-- Predictable, thread-safe behaviour
-- Control over sinks, formatting and filtering
-- Safe usage in libraries without static state
+- A small, dependency free logging core
+- Predictable, thread-safe behavior
+- Control over log destinations
+- Safe logging without static state
 
 ---
 
-## Installation
+# Installation
 
-- **Include in the source code:** copy the `src` folder into your project
-- **Include the JAR as an external library:** download a release JAR and include in your project
+Download the latest release from the [releases page](https://github.com/baguettege/simplelogger/releases)
+and add it to your project's classpath.
+
+Alternatively, you can include the `src` directory directly in your project.
 
 ---
 
-## Quick Start
+# Quick Start
 
 ```java
-LogFormatter logFormatter = new DefaultLogFormatter(
-        new SimpleTimeFormatter(),
-        true // show thread names
+// console logger
+Logger logger = new Logger(
+        "MyApp",
+        Level.INFO,
+        new ConsoleSink(new LogFormatter(
+                new ISO8601TimeFormatter(),
+                LogField.TIMESTAMP,
+                LogField.LEVEL,
+                LogField.THREAD_NAME,
+                LogField.LOGGER_NAME
+        ))
 );
 
-LogSink sink = new PrintStreamLogSink(System.out, logFormatter);
+logger.info("App started");
+logger.warn("Failed to connect to {}", host);
+logger.fatal("Low memory: {}", availableMemory);
+```
 
-try (CloseableLogger logger = new SimpleLogger("MyApp", sink)) {
-    logger.info("Application started on port {}", 8080);
-    logger.warn("High memory usage: {}%", 92);
+---
+
+# Usage Guide
+
+### Creating a `Logger`
+
+Every logger requires a name and a sink:
+```java
+Logger logger = new Logger("MyApp", sink);
+```
+
+Optionally specify a minimum log level:
+```java
+// ignore TRACE and DEBUG logs
+Logger logger = new Logger("MyApp", Level.INFO, sink);
+```
+
+### Log Levels
+
+From lowest to highest severity:
+
+- `TRACE` - Fine-grained debugging information
+- `DEBUG` - Detailed debugging information
+- `INFO` - General information messages
+- `WARN` - Warning messages for potentially harmful situations
+- `ERROR` - Error events that might still allow the app to continue
+- `FATAL` - Severe errors that will likely cause termination
+
+### Message Formatting
+
+Use `{}` as placeholders for parameters:
+```java
+logger.info("User {} logged in from {}", username, address);
+// output: "User Alice logged in from 127.0.0.1"
+```
+
+Escape braces with a backslash:
+
+```java
+logger.info("Use \\{} for placeholders");
+// output: "Use {} for placeholders"
+```
+
+Literal `\` + parameter:
+
+```java
+logger.info("\\\\{}", 1);
+// output: "\1"
+```
+
+### Exception Logging
+
+Pass a `Throwable` as the last parameter to automatically include the stack trace:
+
+```java
+try {
+    new Socket("localhost", 443);
+} catch (IOException e) {
+    logger.error("Failed to connect", e);
 }
 ```
 
----
+## Sinks
 
-## Logging Levels
+### `ConsoleSink`
 
-Supported levels, in ascending order of severity:
-
-`TRACE` > `DEBUG` > `INFO` > `WARN` > `ERROR` > `FATAL`
-
-Level ordering allows easy filtering using ordinal comparisons.
-
----
-
-## Message Formatting
-
-Messages use `{}` placeholders:
+Writes to `System.out` (TRACE through WARN) or `System.err` (ERROR and FATAL):
 
 ```java
-logger.debug("User {} logged in from {}", "alice", "192.168.0.1");
+LogSink sink = new ConsoleSink(logFormatter);
 ```
 
-### Escaping rules:
+### `FileSink`
 
-- `{}` > parameter value
-- `\{}` > `{}`
-- `\\` > `\`
-- extra `{}` > left unchanged (`{}`)
-- extra parameters > ignored
-
-### Exceptions
-
-If the last parameter is a `Throwable`, its stack trace is automatically appended:
+Writes to a file with configurable buffering:
 
 ```java
-logger.error("Failed to connect to server", new IOException());
-```
-
----
-
-## Log Sinks
-
-Sinks define where logs go.
-
-### PrintStreamLogSink
-
-Writes formatted logs to a single `PrintStream`.
-
-```java
-LogSink sink = new PrintStreamLogSink(
-        System.out,
-        formatter
+LogSink sink = new FileSink(
+        Path.of("session.log"),
+        e -> System.err.println("Log error: " + e),
+        10,
+        logFormatter
 );
 ```
 
-### DualPrintStreamLogSink
+### `CompositeSink`
 
-Routes logs by severity:
-- `ERROR`, `FATAL` > `System.err`
-- all others > `System.out`
+Write to multiple destinations simultaneously:
 
 ```java
-LogSink sink = new DualPrintStreamLogSink(
-        System.out,
-        System.err,
-        formatter
-);
-```
-
-### CompositeLogSink
-
-Branch out logs to multiple sinks:
-
-```java
-LogSink sink = new CompositeLogSink(
+LogSink sink = new CompositeSink(
         consoleSink,
-        fileSink,
-        databaseSink
+        fileSink
 );
 ```
 
-### FilterLogSink
+### `FilteredSink`
 
-Filter events before they reach a sink:
+Filter events by level, logger name, or custom predicates:
 
 ```java
-LogSink errorOnlySink = FilterLogSink.filterByMinLevel(
-    sink,
-    Level.ERROR
+// only log ERROR and FATAL
+LogSink errorSink = new FilteredSink(
+        sink,
+        event -> event.level().ordinal() >= Level.ERROR.ordinal()
+);
+
+// only log from specific logger
+LogSink securitySink = new FilteredSink(
+        sink,
+        event -> event.loggerName().equals("Security")
 );
 ```
 
-Custom predicates are also supported:
+### `NullSink`
+
+Discards all events:
 
 ```java
-LogSink authOnlySink = FilterLogSink.filterBy(
-    sink,
-    event -> event.loggerName().startsWith("Auth")
-);
+LogSink sink = new NullSink();
 ```
 
-### AsyncLogSink
+## Async Sinks
 
-Process logs asynchronously using a background thread.
+### `ReliableAsyncSink`
+
+Guarantees all events are written, but uses unbounded memory:
 
 ```java
-LogSink asyncSink = AsyncLogSink.builder()
-    .sink(sink)
-    .queueSize(2048)
-    .policy(DiscardPolicy.DROP_OLD)
-    .isDaemon(true)
-    .build();
+LogSink sink = new ReliableAsyncSink(otherSink, 2); // 2 worker threads
 ```
 
-Discard Policies:
-- `DROP_NEW` > drop new events
-- `DROP_OLD` > drop oldest queued event
-- `SYNC_FALLBACK` > log synchronously
+### `LossyAsyncSink`
 
-Dropped event count is tracked:
+Uses bounded queue and may drop new events under heavy load:
 
 ```java
-long dropped = asyncSink.getDroppedCount();
+LogSink sink = new LossyAsyncSink(otherSink, 1024); // 1024 queue size
+long dropped = sink.getDroppedCount(); // check drops
 ```
 
----
+## Custom `LogSink`
+
+You can create custom sinks to allow for many different log destinations:
+
+```java
+public final class CustomSink implements LogSink {
+    @Override
+    public void accept(LogEvent event) {
+        // logic
+    }
+    
+    @Override
+    public void close() {
+        // logic
+    }
+    
+    @Override
+    public boolean isClosed() {
+        // logic
+        return ?;
+    }
+}
+```
 
 ## Formatters
 
-### DefaultLogFormatter
+### `LogFormatter`
 
-Produces aligned, multi-line output:
+Configure which metadata fields appear in log prefixes:
 
+```java
+LogFormatter detailFormatter = new LogFormatter(
+        timeFormatter,
+        LogField.TIMESTAMP,
+        LogField.LEVEL,
+        LogField.THREAD_NAME,
+        LogField.LOGGER_NAME
+);
+// output: [2024-01-28 14:30:45] [INFO] [main] [MyApp] Application started
+
+LogFormatter simpleFormatter = new LogFormatter(
+        timeFormatter,
+        LogField.TIMESTAMP,
+        LogField.LEVEL
+);
+// output: [2024-01-28 14:30:45] [INFO] Application started
 ```
-[14:30:15] [INFO] [main] [MyApp] Application started
-                                 Listening on port 8080
+
+### `TimeFormatter`
+
+ISO-8601:
+
+```java
+TimeFormatter formatter = new ISO8601TimeFormatter();
+// output: 2024-01-28T14:30:45.123Z
 ```
 
-Supports:
-- multi-line indentation
-- exception stack traces
-- optional thread names
+Local Date-Time:
 
-### Time Formatters
+```java
+TimeFormatter formatter = new LocalDateTimeFormatter();
+// output: 2024-01-28 14:30:45
+```
 
-Included implementations:
-- `SimpleTimeFormatter` > `HH:mm:ss`
-- `SimpleDateTimeFormatter` > `yyyy-MM-dd HH:mm:ss`
-- `ISO8601TimeFormatter` > ISO-8601 timestamps
+Local Time:
 
-Custom implementations can be plugged in via `TimeFormatter`.
+```java
+TimeFormatter formatter = new LocalTimeFormatter();
+// output: 14:30:45
+```
+
+#### Custom time formatting:
+
+`TimeFormatter` is a functional interface, so custom time formatting can be implemented using
+a lambda function, method reference, or a class implementing `TimeFormatter`.
 
 ---
 
-## Architecture Overview
+## Best Practices
+
+Always close loggers when done to flush buffered events and release resources:
+
+```java
+try (Logger logger = new Logger("MyApp", sink)) {
+    logger.info(...);
+    // logic...
+} // automatically closed (closes underlying sink)
+```
+
+All sinks are designed to be thread-safe and non-throwing, breaking this may cause unexpected
+outcomes.
+
+---
+
+## Architecture
 
 ```
 Logger
-  ↓
-LogEvent
-  ↓
-LogSink
-   ├─ FilterLogSink
-   ├─ AsyncLogSink
-   ├─ CompositeLogSink
-   ├─ Output Sink
-   └─ Custom Sink
+ └─> LogEvent
+     └─> LogSink
+          ├─> ConsoleSink
+          ├─> FileSink
+          ├─> CompositeSink
+          ├─> FilteredSink
+          ├─> ReliableAsyncSink
+          ├─> LossyAsyncSink
+          └─> NullSink
+          
+LogFormatter
+ ├─> TimeFormatter
+ │    ├─> ISO8601TimeFormatter
+ │    ├─> LocalDateTimeFormatter
+ │    └─> LocalTimeFormatter
+ └─> LogField
 ```
-
-### Thread-Safety
-
-- all loggers, sinks and formatters are thread-safe.
-- async sinks synchronize access to underlying sinks
-- close operations can be called multiple times safely
-
-### Design Philosophy
-
-- Keep APIs small and predictable
-- Make logging safe in library code
-- Never block application threads unless explicitly configured
 
 ---
 
 ## Requirements
 
-- Java 11+
+- Built for Java 17+, but may support lower levels. Check release information for specifics
 - No external dependencies
 
 ---

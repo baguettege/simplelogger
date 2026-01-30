@@ -1,91 +1,176 @@
 package io.github.bagu.simplelogger;
 
+import java.time.Instant;
+import java.util.Arrays;
+import java.util.Objects;
+
 /**
- * A basic logging interface providing methods for logging at different severity levels.
- *
+ * A logger that sends log events to a {@link LogSink}.
  * <p>
- *     This interface defines the core logging operations.
- *     Messages support parameter substitution.
- * </p>
+ * Logger instances are configured with a name, a sink to write events to, and an optional
+ * minimum severity level. Log messages below the minimum level are silently dropped.
+ * <p>
+ * Thread safety: This class is thread-safe and can be used concurrently from multiple threads,
+ * so long as the underlying log sink is thread-safe itself.
  *
- *
- * <pre>
- *     {@code Logger logger = new SimpleLogger("main", sink);
- * logger.info("Hello world!");
- * logger.debug("Connected to server at {}", "192.168.0.1");}
- * </pre>
+ * @see LogSink
+ * @see LogEvent
+ * @see Level
  */
-public interface Logger {
-    /**
-     * Logs a message at the TRACE level.
-     *
-     * <p>
-     *     Use TRACE for very detailed diagnostic information.
-     * </p>
-     *
-     * @param message the message template
-     * @param parameters parameters to substitute into the message template
-     */
-    void trace(String message, Object... parameters);
+public final class Logger implements AutoCloseable {
+    private final String name;
+    private final LogSink sink;
+    private final Level minLevel;
 
     /**
-     * Logs a message at the DEBUG level.
+     * Constructs a logger with the specified name, sink, and minimum level.
      *
-     * <p>
-     *     Use DEBUG for information useful during development and debugging.
-     * </p>
-     *
-     * @param message the message template
-     * @param parameters parameters to substitute into the message template
+     * @param name the name of this logger
+     * @param minLevel the minimum severity level
+     * @param sink the sink to write log events to
+     * @throws NullPointerException if any parameter is null
      */
-    void debug(String message, Object... parameters);
+    public Logger(String name, Level minLevel, LogSink sink) {
+        this.name = Objects.requireNonNull(name);
+        this.minLevel = Objects.requireNonNull(minLevel);
+        this.sink = Objects.requireNonNull(sink);
+    }
 
     /**
-     * Logs a message at the INFO level.
-     *
+     * Constructs a logger with the specified name and sink.
      * <p>
-     *     Use INFO for informational messages about normal application operations.
-     * </p>
+     * The minimum level defaults to {@link Level#TRACE}, meaning all log events will be written.
      *
-     * @param message the message template
-     * @param parameters parameters to substitute into the message template
+     * @param name the name of this logger
+     * @param sink the sink to write log events to
+     * @throws NullPointerException if any parameter is null
      */
-    void info(String message, Object... parameters);
+    public Logger(String name, LogSink sink) {
+        // log everything by default
+        this(name, Level.TRACE, sink);
+    }
 
     /**
-     * Logs a message at the WARN level.
-     *
+     * Internal method to log a message at a specified level with optional parameters.
      * <p>
-     *     Use WARN for potentially harmful situations that don't prevent the application
-     *     from functioning but may require attention.
-     * </p>
+     * If the sink is closed or the level is below the minimum, the log is silently dropped.
      *
-     * @param message the message template
-     * @param parameters parameters to substitute into the message template
+     * @param level the severity level of the log
+     * @param message the message to log
+     * @param params optional parameters
+     * @throws NullPointerException if level or message is null
      */
-    void warn(String message, Object... parameters);
+    private void log(
+            Level level,
+            String message,
+            Object... params
+    ) {
+        Objects.requireNonNull(level);
+        Objects.requireNonNull(message);
+
+        if (sink.isClosed() || level.ordinal() < minLevel.ordinal()) {
+            return;
+        }
+
+        sink.accept(new LogEvent(
+                Instant.now(),
+                level,
+                Thread.currentThread().getName(),
+                name,
+                message,
+                Arrays.asList(params)
+        ));
+    }
 
     /**
-     * Logs a message at the ERROR level.
+     * Logs a message at the {@link Level#TRACE} level.
      *
-     * <p>
-     *     Use ERROR for error events that might still allow the application to continue running.
-     * </p>
-     *
-     * @param message the message template
-     * @param parameters parameters to substitute into the message template
+     * @param message the message to log
+     * @param params optional parameters
      */
-    void error(String message, Object... parameters);
+    public void trace(String message, Object... params) {
+        this.log(Level.TRACE, message, params);
+    }
 
     /**
-     * Logs a message at the FATAL level.
+     * Logs a message at the {@link Level#DEBUG} level.
      *
-     * <p>
-     *     Use FATAL for severe error events that will likely lead to application termination.
-     * </p>
-     *
-     * @param message the message template
-     * @param parameters parameters to substitute into the message template
+     * @param message the message to log
+     * @param params optional parameters
      */
-    void fatal(String message, Object... parameters);
+    public void debug(String message, Object... params) {
+        this.log(Level.DEBUG, message, params);
+    }
+
+    /**
+     * Logs a message at the {@link Level#INFO} level.
+     *
+     * @param message the message to log
+     * @param params optional parameters
+     */
+    public void info(String message, Object... params) {
+        this.log(Level.INFO, message, params);
+    }
+
+    /**
+     * Logs a message at the {@link Level#WARN} level.
+     *
+     * @param message the message to log
+     * @param params optional parameters
+     */
+    public void warn(String message, Object... params) {
+        this.log(Level.WARN, message, params);
+    }
+
+    /**
+     * Logs a message at the {@link Level#ERROR} level.
+     *
+     * @param message the message to log
+     * @param params optional parameters
+     */
+    public void error(String message, Object... params) {
+        this.log(Level.ERROR, message, params);
+    }
+
+    /**
+     * Logs a message at the {@link Level#FATAL} level.
+     *
+     * @param message the message to log
+     * @param params optional parameters
+     */
+    public void fatal(String message, Object... params) {
+        this.log(Level.FATAL, message, params);
+    }
+
+    /**
+     * Closes this logger and its underlying sink.
+     * <p>
+     * This method is synchronized and idempotent to ensure the sink is closed exactly once.
+     */
+    @Override
+    public void close() {
+        synchronized (this) {
+            if (!sink.isClosed()) {
+                sink.close();
+            }
+        }
+    }
+
+    /**
+     * Checks whether this logger has been closed.
+     *
+     * @return {@code true} if the logger is closed, otherwise {@code false}
+     */
+    public boolean isClosed() {
+        return sink.isClosed();
+    }
+
+    @Override
+    public String toString() {
+        return "Logger{" +
+                "name='" + name + '\'' +
+                ", sink=" + sink +
+                ", minLevel=" + minLevel +
+                '}';
+    }
 }
